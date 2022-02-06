@@ -11,8 +11,15 @@ import os, glob
 import random
 
 
+
+
+def init_weights(m):
+    if type(m) == nn.Linear or type(m) == nn.Conv2d:
+        nn.init.xavier_uniform_(m.weight)
+
+
 # 训练主函数
-def train(train_iter, test_iter, net, loss, optimizer, num_epochs, batch_size):
+def train(train_iter, test_iter, net, loss, optimizer, num_epochs, batch_size,mode='0'):
     # 初始化训练细节打印间隔
     log_interval = 20
     # 存储可视化图表数据
@@ -23,13 +30,9 @@ def train(train_iter, test_iter, net, loss, optimizer, num_epochs, batch_size):
     train_counter = []
     test_losses = []
     test_counter = []
-    # 定义Xavier初始化函数
-    def init_weights(m):
-        if type(m) == nn.Linear or type(m) == nn.Conv2d:
-            nn.init.xavier_uniform_(m.weight)
-
     # 初始化网络参数，并放在GPU上训练
-    net.apply(init_weights)
+    if mode != 'continue':
+        net.apply(init_weights)
     device = d2l.try_gpu()
     net.to(device)
     print("training on", device)
@@ -76,7 +79,6 @@ def train(train_iter, test_iter, net, loss, optimizer, num_epochs, batch_size):
         test_counter.append(epoch + 1)
         # 每个周期后保存一次
         torch.save(net.state_dict(), "./Parameters/model.pth")
-        torch.save(optimizer.state_dict(), "./Parameters/optimizer.pth")
 
     # 可视化
     details(train_counter, train_losses, train_acc, test_counter, test_losses, test_acc)
@@ -223,3 +225,24 @@ def get_iter(csv_filename, resize=False, mode=None, batch_size=None):
         print(x.shape)
         print("label:", y, "\n")
     return iter
+
+def predict(net, test_iter, n=6):  # @save
+    device = d2l.try_gpu()
+    net.to(device)
+    net.eval()
+    with torch.no_grad():
+        for X, y in test_iter:
+            X = X[0:n]
+            y = y[0:n]
+            X, y = X.to(device), y.to(device)
+            trues = get_classname_from_label(y)
+            preds = get_classname_from_label(net(X).argmax(axis=1))
+            titles = [true + "\n" + pred for true, pred in zip(trues, preds)]
+            print(titles)
+            d2l.show_images(X.cpu().reshape((n, 28, 28)), 1, n, titles=titles[0:n])
+            plt.subplots_adjust(top = 0.7)
+            plt.show()
+
+def get_classname_from_label(labels):
+    text_labels = ['0','1','2','3','4','5','6','7','8','9']
+    return [text_labels[int(i)] for i in labels]
